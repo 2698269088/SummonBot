@@ -1,0 +1,23 @@
+name: SummonBot
+version: '1.0'
+main: top.mcocet.summonBot.SummonBot
+api-version: '1.21'
+authors: [ MCOCET ]
+description: 让玩家召唤一个Bot，用于挂机
+website: https://home.mcocet.top
+folia-supported: true
+
+commands:
+  sbot:
+    description: SummonBot主命令
+    usage: /sbot <sum|uns|list>
+    permission: summonbot.use
+    permission-message: §c你没有权限执行此命令!
+
+permissions:
+  summonbot.use:
+    description: 允许使用基本命令
+    default: true
+  summonbot.admin:
+    description: 管理员权限，可以查看所有bot和移除任意bot
+    default: op

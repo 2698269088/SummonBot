@@ -1,0 +1,18 @@
+# 每个玩家最多可以召唤的bot数量
+max-bots-per-player: 3
+
+# 数据库设置
+database:
+  # 自动保存间隔（秒）
+  auto-save-interval: 300
+
+# Bot设置
+bot:
+  # 区块加载设置（用于离线挂机）
+  chunk-load:
+    # 是否启用bot周围区块强制加载
+    # 启用后，即使没有玩家在附近，bot周围的区块也会保持加载状态
+    enabled: true
+    # 加载半径（以bot为中心的区块半径，1-10）
+    # 例如：radius=3 表示加载 bot 周围 7x7 个区块（半径3个区块）
+    radius: 4
