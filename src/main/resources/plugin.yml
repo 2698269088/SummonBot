@@ -1,5 +1,5 @@
 name: SummonBot
-version: '1.0'
+version: '1.1'
 main: top.mcocet.summonBot.SummonBot
 api-version: '1.21'
 authors: [ MCOCET ]

@@ -3,15 +3,19 @@ package top.mcocet.summonBot.bot;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Villager;
 import org.bukkit.metadata.FixedMetadataValue;
 import top.mcocet.summonBot.SummonBot;
 import top.mcocet.summonBot.database.DatabaseManager;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class BotManager {
     
@@ -185,10 +189,39 @@ public class BotManager {
             return;
         }
         
+        // 先收集所有需要清理的旧bot实体（在恢复完成后再清理）
+        List<Villager> oldBotsToRemove = collectOldBotEntities();
+        
+        // 先恢复所有bot，恢复完成后再清理旧实体
+        scheduleRestoreBots(allBots, oldBotsToRemove);
+    }
+    
+    /**
+     * 收集世界中所有带有SummonBot元数据的旧实体
+     */
+    private List<Villager> collectOldBotEntities() {
+        List<Villager> oldBots = new ArrayList<>();
+        
+        for (World world : plugin.getServer().getWorlds()) {
+            for (Entity entity : world.getEntities()) {
+                if (entity instanceof Villager && entity.hasMetadata("SummonBot")) {
+                    oldBots.add((Villager) entity);
+                }
+            }
+        }
+        
+        return oldBots;
+    }
+    
+    /**
+     * 调度恢复所有bot，恢复完成后清理旧实体
+     */
+    private void scheduleRestoreBots(java.util.List<top.mcocet.summonBot.database.DatabaseManager.BotInfo> allBots,
+                                      List<Villager> oldBotsToRemove) {
         // 使用原子计数器跟踪异步恢复结果
-        java.util.concurrent.atomic.AtomicInteger restoredCount = new java.util.concurrent.atomic.AtomicInteger(0);
-        java.util.concurrent.atomic.AtomicInteger failedCount = new java.util.concurrent.atomic.AtomicInteger(0);
-        java.util.concurrent.atomic.AtomicInteger scheduledCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        AtomicInteger restoredCount = new AtomicInteger(0);
+        AtomicInteger failedCount = new AtomicInteger(0);
+        AtomicInteger scheduledCount = new AtomicInteger(0);
         
         for (top.mcocet.summonBot.database.DatabaseManager.BotInfo botInfo : allBots) {
             try {
@@ -201,7 +234,7 @@ public class BotManager {
                     continue;
                 }
                 
-                // 检查该名字是否已经被占用
+                // 检查该名字是否已经被占用（跳过旧实体，因为旧实体稍后会被清理）
                 if (activeBots.containsKey(botInfo.getBotName())) {
                     plugin.getLogger().warning("Bot '" + botInfo.getBotName() + "' 的名字已被占用，跳过恢复");
                     failedCount.incrementAndGet();
@@ -245,6 +278,25 @@ public class BotManager {
         }
         
         plugin.getLogger().info("Bot恢复调度完成: 计划恢复 " + scheduledCount.get() + " 个Bot");
+        
+        // 延迟清理旧实体，确保新bot已经恢复完成
+        if (!oldBotsToRemove.isEmpty()) {
+            plugin.getServer().getGlobalRegionScheduler().runDelayed(plugin, (task) -> {
+                int cleanedCount = 0;
+                for (Villager oldVillager : oldBotsToRemove) {
+                    Location loc = oldVillager.getLocation();
+                    plugin.getServer().getRegionScheduler().execute(plugin, loc, () -> {
+                        if (!oldVillager.isDead()) {
+                            String oldBotName = oldVillager.getMetadata("BotName").isEmpty() ? 
+                                               "unknown" : oldVillager.getMetadata("BotName").get(0).asString();
+                            oldVillager.remove();
+                            plugin.getLogger().info("清理残留旧Bot实体: " + oldBotName);
+                        }
+                    });
+                }
+                plugin.getLogger().info("已调度清理 " + oldBotsToRemove.size() + " 个残留旧Bot实体");
+            }, 10L); // 延迟0.5秒，确保恢复任务已执行
+        }
     }
     
     /**
